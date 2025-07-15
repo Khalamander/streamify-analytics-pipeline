@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamify Analytics Pipeline - Real-time Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #2c3e50;
+        }
+
+        .fraud-alert {
+            background: #ffebee;
+            border-left: 4px solid #e74c3c;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+        }
+
+        .fraud-alert h4 {
+            color: #c0392b;
+            margin-bottom: 0.5rem;
+        }
+
+        .fraud-reasons {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .transaction-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #3498db;
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .transaction-id {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .transaction-amount {
+            font-weight: 700;
+            color: #27ae60;
+            font-size: 1.1rem;
+        }
+
+        .transaction-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-generating {
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        .status-stopped {
+            background: #e74c3c;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c0392b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .success {
+            background: #e8f5e8;
+            color: #27ae60;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Streamify Analytics Pipeline</h1>
+        <p>Real-time E-commerce Analytics & Fraud Detection Dashboard</p>
+        
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary">▶️ Start Data Generation</button>
+            <button id="stopBtn" class="btn btn-danger">⏹️ Stop Generation</button>
+            <button id="resetBtn" class="btn btn-success">🔄 Reset Data</button>
+            <div style="margin-left: auto; display: flex; align-items: center;">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Stopped</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Key Metrics -->
+        <div class="grid">
+            <div class="card">
+                <h3>📊 Key Metrics</h3>
+                <div class="metric">
+                    <span class="metric-label">Total Revenue</span>
+                    <span class="metric-value" id="totalRevenue">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Transactions</span>
+                    <span class="metric-value" id="totalTransactions">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Fraud Alerts</span>
+                    <span class="metric-value" id="fraudCount">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Avg Transaction</span>
+                    <span class="metric-value" id="avgTransaction">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Processing Rate</span>
+                    <span class="metric-value" id="processingRate">0/min</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🚨 Recent Fraud Alerts</h3>
+                <div id="fraudAlerts">
+                    <div class="loading">No fraud alerts yet...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Category Breakdown</h3>
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>💳 Payment Methods</h3>
+                <div class="chart-container">
+                    <canvas id="paymentChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card">
+            <h3>💳 Recent Transactions</h3>
+            <div id="recentTransactions">
+                <div class="loading">No transactions yet. Start data generation to see live data!</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let categoryChart = null;
+        let paymentChart = null;
+        let isGenerating = false;
+
+        // DOM elements
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+
+        // Initialize charts
+        function initCharts() {
+            // Category Chart
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            '#3498db', '#e74c3c', '#f39c12', '#2ecc71', '#9b59b6',
+                            '#1abc9c', '#34495e', '#e67e22'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Payment Chart
+            const paymentCtx = document.getElementById('paymentChart').getContext('2d');
+            paymentChart = new Chart(paymentCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Transactions',
+                        data: [],
+                        backgroundColor: '#3498db'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update status indicator
+        function updateStatus(generating) {
+            isGenerating = generating;
+            if (generating) {
+                statusIndicator.className = 'status-indicator status-generating';
+                statusText.textContent = 'Generating Data...';
+            } else {
+                statusIndicator.className = 'status-indicator status-stopped';
+                statusText.textContent = 'Stopped';
+            }
+        }
+
+        // Fetch and update data
+        async function updateData() {
+            try {
+                // Fetch analytics data
+                const analyticsResponse = await fetch('/api/analytics');
+                const analytics = await analyticsResponse.json();
+
+                // Update metrics
+                document.getElementById('totalRevenue').textContent = `$${analytics.total_revenue.toLocaleString()}`;
+                document.getElementById('totalTransactions').textContent = analytics.total_transactions.toLocaleString();
+                document.getElementById('fraudCount').textContent = analytics.fraud_count.toLocaleString();
+                document.getElementById('avgTransaction').textContent = `$${analytics.avg_transaction.toFixed(2)}`;
+                document.getElementById('processingRate').textContent = `${analytics.processing_rate.toFixed(1)}/min`;
+
+                // Update charts
+                updateCategoryChart(analytics.category_breakdown);
+                updatePaymentChart(analytics.payment_methods);
+
+                // Fetch fraud alerts
+                const fraudResponse = await fetch('/api/fraud_alerts');
+                const fraudAlerts = await fraudResponse.json();
+                updateFraudAlerts(fraudAlerts);
+
+                // Fetch recent transactions
+                const transactionsResponse = await fetch('/api/transactions');
+                const transactions = await transactionsResponse.json();
+                updateRecentTransactions(transactions);
+
+            } catch (error) {
+                console.error('Error updating data:', error);
+            }
+        }
+
+        // Update category chart
+        function updateCategoryChart(categoryData) {
+            const labels = Object.keys(categoryData);
+            const data = Object.values(categoryData);
+            
+            categoryChart.data.labels = labels;
+            categoryChart.data.datasets[0].data = data;
+            categoryChart.update();
+        }
+
+        // Update payment chart
+        function updatePaymentChart(paymentData) {
+            const labels = Object.keys(paymentData);
+            const data = Object.values(paymentData);
+            
+            paymentChart.data.labels = labels;
+            paymentChart.data.datasets[0].data = data;
+            paymentChart.update();
+        }
+
+        // Update fraud alerts
+        function updateFraudAlerts(alerts) {
+            const container = document.getElementById('fraudAlerts');
+            
+            if (alerts.length === 0) {
+                container.innerHTML = '<div class="loading">No fraud alerts yet...</div>';
+                return;
+            }
+
+            container.innerHTML = alerts.slice(-5).map(alert => `
+                <div class="fraud-alert">
+                    <h4>🚨 Transaction ${alert.transaction_id}</h4>
+                    <div class="fraud-reasons">
+                        <strong>Amount:</strong> $${alert.amount.toLocaleString()}<br>
+                        <strong>Fraud Score:</strong> ${alert.fraud_score.toFixed(2)}<br>
+                        <strong>Reasons:</strong> ${alert.reasons.join(', ')}<br>
+                        <strong>Time:</strong> ${new Date(alert.timestamp).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update recent transactions
+        function updateRecentTransactions(transactions) {
+            const container = document.getElementById('recentTransactions');
+            
+            if (transactions.length === 0) {
+                container.innerHTML = '<div class="loading">No transactions yet. Start data generation to see live data!</div>';
+                return;
+            }
+
+            container.innerHTML = transactions.slice(-10).map(transaction => `
+                <div class="transaction-item">
+                    <div class="transaction-header">
+                        <span class="transaction-id">${transaction.transaction_id}</span>
+                        <span class="transaction-amount">$${transaction.amount.toLocaleString()}</span>
+                    </div>
+                    <div class="transaction-details">
+                        <div><strong>User:</strong> ${transaction.user_id}</div>
+                        <div><strong>Category:</strong> ${transaction.product_category}</div>
+                        <div><strong>Payment:</strong> ${transaction.payment_method}</div>
+                        <div><strong>Location:</strong> ${transaction.location.city}, ${transaction.location.country}</div>
+                        <div><strong>Time:</strong> ${new Date(transaction.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/start_generation', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'started') {
+                    updateStatus(true);
+                    showMessage('Data generation started!', 'success');
+                } else {
+                    showMessage('Data generation already running', 'error');
+                }
+            } catch (error) {
+                showMessage('Error starting data generation', 'error');
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/stop_generation', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'stopped') {
+                    updateStatus(false);
+                    showMessage('Data generation stopped', 'success');
+                }
+            } catch (error) {
+                showMessage('Error stopping data generation', 'error');
+            }
+        });
+
+        resetBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/reset_data', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'reset') {
+                    updateStatus(false);
+                    updateData();
+                    showMessage('Data reset successfully', 'success');
+                }
+            } catch (error) {
+                showMessage('Error resetting data', 'error');
+            }
+        });
+
+        // Show message
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messageDiv.style.position = 'fixed';
+            messageDiv.style.top = '20px';
+            messageDiv.style.right = '20px';
+            messageDiv.style.zIndex = '1000';
+            messageDiv.style.padding = '1rem';
+            messageDiv.style.borderRadius = '8px';
+            messageDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            
+            document.body.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 3000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            updateData();
+            
+            // Update data every 2 seconds
+            setInterval(updateData, 2000);
+        });
+    </script>
+</body>
+</html>
