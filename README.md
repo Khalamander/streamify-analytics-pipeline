@@ -70,7 +70,7 @@ python app.py
 
 ## 🖥️ Live Dashboard
 
-![Live Demo Screenshot](screenshots/Live%20Demo%20Screenshot.png)
+![Live Demo Screenshot](screenshots/Live_Demo_Screenshot.png)
 
 **Real-time Features:**
 - Live fraud detection with 5 risk factors
